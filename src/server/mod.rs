@@ -17,6 +17,10 @@ pub fn app(state: AppState) -> Router {
     Router::new()
         .route("/api/health", axum::routing::get(routes::health::handler))
         .route("/api/tracks", axum::routing::get(routes::tracks::list))
+        .route(
+            "/api/tracks/{id}/stream",
+            axum::routing::get(routes::tracks::stream),
+        )
         .nest_service("/assets", ServeDir::new("web/assets"))
         .fallback_service(ServeDir::new("web"))
         .layer(TraceLayer::new_for_http())
