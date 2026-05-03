@@ -121,9 +121,8 @@ async fn stream_supports_range() {
         .await
         .expect("create scan");
     let pool_clone = pool.clone();
-    let fixtures_clone = fixtures.clone();
     tokio::spawn(async move {
-        maestro::scan::scan_dir(&fixtures_clone, &pool_clone, scan_id)
+        maestro::scan::scan_dir(&fixtures, &pool_clone, scan_id)
             .await
             .ok();
     });
