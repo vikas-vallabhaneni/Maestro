@@ -4,7 +4,7 @@ use std::path::Path;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Classification {
-    Unchanged,
+    Unchanged { id: Vec<u8> },
     Changed { id: Vec<u8>, rehashed: bool },
     Moved { id: Vec<u8> },
     New { id: Vec<u8> },
@@ -24,7 +24,7 @@ pub async fn classify(
 ) -> Result<Classification, anyhow::Error> {
     if let Some(stat) = db::tracks::find_stat_by_path(pool, path).await? {
         if stat.size == size && stat.mtime == mtime {
-            return Ok(Classification::Unchanged);
+            return Ok(Classification::Unchanged { id: stat.id });
         }
 
         let id = hash_file(Path::new(path))?;
@@ -114,7 +114,10 @@ mod tests {
         let result = classify(&pool, "/music/song.flac", 1000, 123_456)
             .await
             .expect("classify");
-        assert_eq!(result, Classification::Unchanged);
+        assert!(
+            matches!(result, Classification::Unchanged { .. }),
+            "expected Unchanged, got {result:?}"
+        );
     }
 
     #[tokio::test]

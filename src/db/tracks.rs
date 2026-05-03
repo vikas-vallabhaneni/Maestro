@@ -65,14 +65,6 @@ pub async fn list(pool: &SqlitePool) -> Result<Vec<TrackRow>, sqlx::Error> {
     .await
 }
 
-pub async fn find_path_by_id(pool: &SqlitePool, id: &[u8]) -> Result<Option<String>, sqlx::Error> {
-    let row: Option<(String,)> = sqlx::query_as("SELECT path FROM tracks WHERE id = ?1")
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
-    Ok(row.map(|r| r.0))
-}
-
 pub async fn find_stat_by_path(
     pool: &SqlitePool,
     path: &str,

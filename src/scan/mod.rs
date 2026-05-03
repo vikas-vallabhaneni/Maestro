@@ -50,10 +50,8 @@ async fn process_file(pool: &SqlitePool, path: &Path, accum: &mut ScanAccum) -> 
     let classification = identity::classify(pool, &path_str, size, mtime_i64).await?;
 
     match classification {
-        identity::Classification::Unchanged => {
-            if let Some(stat) = db::tracks::find_stat_by_path(pool, &path_str).await? {
-                accum.seen_ids.insert(stat.id);
-            }
+        identity::Classification::Unchanged { id } => {
+            accum.seen_ids.insert(id);
         }
         identity::Classification::Changed { id, rehashed } => {
             if rehashed {
