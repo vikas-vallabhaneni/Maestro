@@ -73,6 +73,19 @@ async fn main() -> anyhow::Result<()> {
     let listener = TcpListener::bind(addr).await?;
     tracing::info!(%addr, "listening");
 
+    let scan_pool = state.db.clone();
+    let scan_root = state.library_root.clone();
+    tokio::spawn(async move {
+        match maestro::scan::auto_scan(&scan_root, &scan_pool).await {
+            Ok(report) => tracing::info!(
+                files_seen = report.files_seen,
+                files_new = report.files_new,
+                "auto-scan complete"
+            ),
+            Err(err) => tracing::error!(error = %err, "auto-scan failed"),
+        }
+    });
+
     axum::serve(listener, maestro::server::app(state))
         .with_graceful_shutdown(shutdown_signal())
         .await?;

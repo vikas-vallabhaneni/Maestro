@@ -16,6 +16,7 @@ pub struct AppState {
 pub fn app(state: AppState) -> Router {
     Router::new()
         .route("/api/health", axum::routing::get(routes::health::handler))
+        .route("/api/tracks", axum::routing::get(routes::tracks::list))
         .nest_service("/assets", ServeDir::new("web/assets"))
         .fallback_service(ServeDir::new("web"))
         .layer(TraceLayer::new_for_http())
