@@ -63,11 +63,12 @@ pub async fn stream(
     AxumPath(id): AxumPath<String>,
     request: Request<Body>,
 ) -> Result<Response, AppError> {
-    let id_bytes = hex_decode(&id).ok_or(AppError::not_found("not found"))?;
+    let id_bytes = hex_decode(&id).ok_or_else(|| AppError::not_found("not found"))?;
 
-    let path_str = db::tracks::find_path_by_id(&state.db, &id_bytes)
+    let path_str = db::tracks::find_by_id(&state.db, &id_bytes)
         .await?
-        .ok_or(AppError::not_found("not found"))?;
+        .map(|row| row.path)
+        .ok_or_else(|| AppError::not_found("not found"))?;
 
     let file_path = Path::new(&path_str);
 
