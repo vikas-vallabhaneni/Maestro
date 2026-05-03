@@ -22,16 +22,14 @@ async fn boots_and_health_responds() {
 #[tokio::test]
 async fn scan_then_list_returns_tracks() {
     let fixtures = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
-    let (addr, pool) = common::spawn_test_server(fixtures).await;
+    let (addr, pool) = common::spawn_test_server(fixtures.clone()).await;
 
     let scan_id = maestro::db::scans::create(&pool)
         .await
         .expect("create scan");
     let pool_clone = pool.clone();
-    let fixtures_for_scan =
-        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
     tokio::spawn(async move {
-        let result = maestro::scan::scan_dir(&fixtures_for_scan, &pool_clone, scan_id).await;
+        let result = maestro::scan::scan_dir(&fixtures, &pool_clone, scan_id).await;
         if let Err(err) = &result {
             eprintln!("scan error: {err:#}");
         }
