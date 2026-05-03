@@ -2,18 +2,25 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 
 pub enum AppError {
-    NotFound,
     Internal(anyhow::Error),
+    NotFound(String),
+}
+
+impl AppError {
+    #[must_use]
+    pub fn not_found(msg: &str) -> Self {
+        Self::NotFound(msg.to_string())
+    }
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         match self {
-            Self::NotFound => StatusCode::NOT_FOUND.into_response(),
             Self::Internal(err) => {
                 tracing::error!(error = %err, "internal server error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal server error").into_response()
             }
+            Self::NotFound(msg) => (StatusCode::NOT_FOUND, msg).into_response(),
         }
     }
 }

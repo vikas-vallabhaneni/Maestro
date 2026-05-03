@@ -1,8 +1,11 @@
 use clap::Parser;
 use maestro::server::AppState;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::signal;
+use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use tracing_subscriber::EnvFilter;
 
 #[derive(clap::Parser, Debug)]
@@ -55,9 +58,13 @@ async fn main() -> anyhow::Result<()> {
     let pool = maestro::db::open_pool(&db_path).await?;
     maestro::db::run_migrations(&pool).await?;
 
+    let shutdown_token = CancellationToken::new();
+
     let state = AppState {
         db: pool,
         library_root,
+        current_scan: Arc::new(Mutex::new(None)),
+        shutdown_token: shutdown_token.clone(),
     };
 
     let addr = SocketAddr::from((cfg.host, cfg.port));
@@ -75,11 +82,13 @@ async fn main() -> anyhow::Result<()> {
 
     let scan_pool = state.db.clone();
     let scan_root = state.library_root.clone();
-    tokio::spawn(async move {
-        match maestro::scan::auto_scan(&scan_root, &scan_pool).await {
+    let scan_cancel = shutdown_token.clone();
+    let scan_handle = tokio::spawn(async move {
+        match maestro::scan::auto_scan(&scan_root, &scan_pool, scan_cancel).await {
             Ok(report) => tracing::info!(
                 files_seen = report.files_seen,
                 files_new = report.files_new,
+                files_moved = report.files_moved,
                 "auto-scan complete"
             ),
             Err(err) => tracing::error!(error = %err, "auto-scan failed"),
@@ -87,8 +96,13 @@ async fn main() -> anyhow::Result<()> {
     });
 
     axum::serve(listener, maestro::server::app(state))
-        .with_graceful_shutdown(shutdown_signal())
+        .with_graceful_shutdown(async move {
+            shutdown_signal().await;
+            shutdown_token.cancel();
+        })
         .await?;
+
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(2), scan_handle).await;
 
     tracing::info!("shut down cleanly");
     Ok(())

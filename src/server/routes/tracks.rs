@@ -63,17 +63,17 @@ pub async fn stream(
     AxumPath(id): AxumPath<String>,
     request: Request<Body>,
 ) -> Result<Response, AppError> {
-    let id_bytes = hex_decode(&id).ok_or(AppError::NotFound)?;
+    let id_bytes = hex_decode(&id).ok_or(AppError::not_found("not found"))?;
 
     let path_str = db::tracks::find_path_by_id(&state.db, &id_bytes)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(AppError::not_found("not found"))?;
 
     let file_path = Path::new(&path_str);
 
     let canonical = file_path.canonicalize().map_err(|e| {
         tracing::error!(path = %path_str, error = %e, "failed to canonicalize track path");
-        AppError::NotFound
+        AppError::not_found("not found")
     })?;
 
     if !canonical.starts_with(&state.library_root) {
@@ -82,7 +82,7 @@ pub async fn stream(
             library_root = %state.library_root.display(),
             "path traversal attempt blocked"
         );
-        return Err(AppError::NotFound);
+        return Err(AppError::not_found("not found"));
     }
 
     let is_opus = canonical.extension().and_then(|e| e.to_str()) == Some("opus");
