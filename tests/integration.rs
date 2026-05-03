@@ -137,6 +137,12 @@ async fn stream_supports_range() {
         }
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     }
+    assert!(
+        maestro::db::scans::is_finished(&pool, scan_id)
+            .await
+            .expect("check scan finished"),
+        "scan did not finish in time"
+    );
 
     let tracks: Vec<Value> = reqwest::get(format!("http://{addr}/api/tracks"))
         .await

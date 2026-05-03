@@ -89,8 +89,7 @@ pub async fn stream(
 
     let mut response = ServeFile::new(&canonical)
         .oneshot(request)
-        .await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("{e}")))?
+        .await?
         .map(Body::new);
 
     if is_opus {
