@@ -66,7 +66,8 @@ function NowPlaying({ track, audioRef }) {
 
 function App() {
   const [tracks, setTracks] = useState([]);
-  const [state, setState] = useState({ selectedAlbumId: null, playingTrackId: null });
+  const [selectedAlbumId, setSelectedAlbumId] = useState(null);
+  const [playingTrackId, setPlayingTrackId] = useState(null);
   const [expandedArtist, setExpandedArtist] = useState(null);
   const [scanning, setScanning] = useState(null);
   const audioRef = useRef(null);
@@ -79,27 +80,26 @@ function App() {
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !state.playingTrackId) return;
-    audio.src = '/api/tracks/' + state.playingTrackId + '/stream';
+    if (!audio || !playingTrackId) return;
+    audio.src = '/api/tracks/' + playingTrackId + '/stream';
     audio.play().catch(() => {});
-  }, [state.playingTrackId]);
+  }, [playingTrackId]);
 
   const grouped = groupByArtist(tracks);
   const artists = [...grouped.keys()].sort((a, b) => a.localeCompare(b));
 
   let selectedTracks = [];
-  if (state.selectedAlbumId) {
-    const sep = state.selectedAlbumId.indexOf('\0');
-    const artist = state.selectedAlbumId.slice(0, sep);
-    const album = state.selectedAlbumId.slice(sep + 1);
+  if (selectedAlbumId) {
+    const sep = selectedAlbumId.indexOf('\0');
+    const artist = selectedAlbumId.slice(0, sep);
+    const album = selectedAlbumId.slice(sep + 1);
     selectedTracks = grouped.get(artist)?.get(album) || [];
   }
 
-  const playingTrack = tracks.find(t => t.id === state.playingTrackId) || null;
+  const playingTrack = tracks.find(t => t.id === playingTrackId) || null;
 
-  const play = t => setState(s => ({ ...s, playingTrackId: t.id }));
-  const selectAlbum = (artist, album) =>
-    setState(s => ({ ...s, selectedAlbumId: artist + '\0' + album }));
+  const play = t => setPlayingTrackId(t.id);
+  const selectAlbum = (artist, album) => setSelectedAlbumId(artist + '\0' + album);
   const toggleArtist = artist =>
     setExpandedArtist(a => a === artist ? null : artist);
 
@@ -118,6 +118,16 @@ function App() {
       }, 500);
     }).catch(e => console.error('Failed to start scan:', e));
   };
+
+  let contentPane;
+  if (tracks.length === 0) {
+    contentPane = html`<div class="empty">Library is empty</div>`;
+  } else if (!selectedAlbumId) {
+    contentPane = html`<div class="empty">Select an album</div>`;
+  } else {
+    contentPane = html`<${TrackList} tracks=${selectedTracks}
+      playingTrackId=${playingTrackId} onPlay=${play} />`;
+  }
 
   return html`
     <header>
@@ -140,7 +150,7 @@ function App() {
               <div class="album-list">
                 ${[...grouped.get(artist).keys()].map(album => html`
                   <div key=${album}
-                    class=${'album-name' + (state.selectedAlbumId === artist + '\0' + album
+                    class=${'album-name' + (selectedAlbumId === artist + '\0' + album
                       ? ' selected' : '')}
                     onClick=${() => selectAlbum(artist, album)}>
                     ${album}
@@ -149,12 +159,7 @@ function App() {
           </div>`)}
       </nav>
       <section class="content">
-        ${tracks.length === 0
-          ? html`<div class="empty">Library is empty</div>`
-          : !state.selectedAlbumId
-            ? html`<div class="empty">Select an album</div>`
-            : html`<${TrackList} tracks=${selectedTracks}
-                playingTrackId=${state.playingTrackId} onPlay=${play} />`}
+        ${contentPane}
       </section>
     </main>
     <${NowPlaying} track=${playingTrack} audioRef=${audioRef} />`;
