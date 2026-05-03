@@ -3,6 +3,14 @@ use axum::response::{IntoResponse, Response};
 
 pub enum AppError {
     Internal(anyhow::Error),
+    NotFound(String),
+}
+
+impl AppError {
+    #[must_use]
+    pub fn not_found(msg: &str) -> Self {
+        Self::NotFound(msg.to_string())
+    }
 }
 
 impl IntoResponse for AppError {
@@ -12,6 +20,7 @@ impl IntoResponse for AppError {
                 tracing::error!(error = %err, "internal server error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal server error").into_response()
             }
+            Self::NotFound(msg) => (StatusCode::NOT_FOUND, msg).into_response(),
         }
     }
 }
