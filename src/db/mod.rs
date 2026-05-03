@@ -1,21 +1,19 @@
 pub mod scans;
 pub mod tracks;
 
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::SqlitePool;
 use std::path::Path;
-use std::str::FromStr;
 
 pub async fn open_pool(db_path: &Path) -> Result<SqlitePool, sqlx::Error> {
-    let url = format!("sqlite:{}?mode=rwc", db_path.display());
-    let options = SqliteConnectOptions::from_str(&url)?
+    let options = SqliteConnectOptions::new()
+        .filename(db_path)
         .create_if_missing(true)
-        .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
-    let pool = SqlitePoolOptions::new()
+        .journal_mode(SqliteJournalMode::Wal);
+    SqlitePoolOptions::new()
         .max_connections(5)
         .connect_with(options)
-        .await?;
-    Ok(pool)
+        .await
 }
 
 pub async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::migrate::MigrateError> {
