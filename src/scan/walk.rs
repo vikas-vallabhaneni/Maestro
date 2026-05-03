@@ -7,7 +7,7 @@ pub fn audio_files(root: &Path) -> Vec<PathBuf> {
     walkdir::WalkDir::new(root)
         .follow_links(false)
         .into_iter()
-        .filter_map(|e| e.ok())
+        .filter_map(Result::ok)
         .filter(|e| e.file_type().is_file())
         .filter(|e| {
             e.path()
@@ -15,6 +15,6 @@ pub fn audio_files(root: &Path) -> Vec<PathBuf> {
                 .and_then(|ext| ext.to_str())
                 .is_some_and(|ext| EXTENSIONS.contains(&ext.to_ascii_lowercase().as_str()))
         })
-        .map(|e| e.into_path())
+        .map(walkdir::DirEntry::into_path)
         .collect()
 }
