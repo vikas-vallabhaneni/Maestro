@@ -75,3 +75,46 @@ fn grandparent_fallback(path: &Path) -> Option<String> {
         .and_then(|s| s.to_str())
         .map(String::from)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn fixtures_dir() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
+    }
+
+    #[test]
+    fn well_tagged_flac_reads_all_tags() {
+        let path = fixtures_dir().join("tagged.flac");
+        let snap = read_tags(&path);
+
+        assert_eq!(snap.title.as_deref(), Some("Test Title"));
+        assert_eq!(snap.artist.as_deref(), Some("Test Artist"));
+        assert_eq!(snap.album.as_deref(), Some("Test Album"));
+        assert_eq!(snap.track_no, Some(3));
+        assert!(snap.duration > Duration::ZERO, "duration should be nonzero");
+    }
+
+    #[test]
+    fn untagged_mp3_falls_back_to_path_components() {
+        let path = fixtures_dir().join("untagged.mp3");
+        let snap = read_tags(&path);
+
+        assert_eq!(snap.title.as_deref(), Some("untagged"));
+        assert_eq!(snap.album.as_deref(), Some("fixtures"));
+        assert_eq!(snap.track_no, None);
+    }
+
+    #[test]
+    fn truncated_flac_falls_back_to_path_components() {
+        let path = fixtures_dir().join("truncated.flac");
+        let snap = read_tags(&path);
+
+        assert_eq!(snap.title.as_deref(), Some("truncated"));
+        assert_eq!(snap.album.as_deref(), Some("fixtures"));
+        assert_eq!(snap.track_no, None);
+        assert_eq!(snap.duration, Duration::ZERO);
+    }
+}
