@@ -1,0 +1,106 @@
+use clap::Parser;
+use maestro::server::AppState;
+use std::net::SocketAddr;
+use tokio::net::TcpListener;
+use tokio::signal;
+use tracing_subscriber::EnvFilter;
+
+#[derive(clap::Parser, Debug)]
+#[command(name = "maestro", about = "Personal music server")]
+struct Config {
+    #[arg(long, env = "MAESTRO_LIBRARY")]
+    library: std::path::PathBuf,
+
+    #[arg(long, default_value = "127.0.0.1")]
+    host: std::net::IpAddr,
+
+    #[arg(long, default_value_t = 4173)]
+    port: u16,
+
+    #[arg(long)]
+    data_dir: Option<std::path::PathBuf>,
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("maestro=info")),
+        )
+        .init();
+
+    let cfg = Config::parse();
+
+    if !cfg.library.exists() {
+        anyhow::bail!("--library {}: path does not exist", cfg.library.display());
+    }
+    if !cfg.library.is_dir() {
+        anyhow::bail!(
+            "--library {}: path is not a directory",
+            cfg.library.display()
+        );
+    }
+    let library_root = cfg.library.canonicalize()?;
+
+    let data_dir = cfg.data_dir.unwrap_or_else(|| {
+        directories::ProjectDirs::from("", "", "maestro")
+            .expect("unable to determine platform data directory")
+            .data_dir()
+            .to_path_buf()
+    });
+    std::fs::create_dir_all(&data_dir)?;
+    let db_path = data_dir.join("maestro.db");
+
+    tracing::info!(db = %db_path.display(), "opening database");
+    let pool = maestro::db::open_pool(&db_path).await?;
+    maestro::db::run_migrations(&pool).await?;
+
+    let state = AppState {
+        db: pool,
+        library_root,
+    };
+
+    let addr = SocketAddr::from((cfg.host, cfg.port));
+
+    if !cfg.host.is_loopback() {
+        tracing::warn!(
+            host = %cfg.host,
+            "binding to a non-loopback address — there is no authentication; \
+             anyone on the network can read your music"
+        );
+    }
+
+    let listener = TcpListener::bind(addr).await?;
+    tracing::info!(%addr, "listening");
+
+    axum::serve(listener, maestro::server::app(state))
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+
+    tracing::info!("shut down cleanly");
+    Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        () = ctrl_c => {},
+        () = terminate => {},
+    }
+}
